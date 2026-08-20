@@ -241,20 +241,129 @@
     60%{ transform: scale(1.08); opacity:1; }
     100%{ transform: scale(1); }
   }
-  .photo-edit-btn{
+  .vote-list-row.clickable{
     cursor: pointer;
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 50%;
-    width: 34px;
-    height: 34px;
-    flex-shrink: 0;
+  }
+  .vote-list-row.clickable:active{
+    border-color: var(--gold);
+  }
+  .back-btn{
+    align-self: flex-start;
+    margin-bottom: 10px;
+  }
+  .photo-edit-preview{
     display:flex;
+    justify-content:center;
+    margin: 10px 0 20px;
+  }
+  .photo-edit-stats{
+    display:flex;
+    justify-content:center;
+    gap: 30px;
+    margin-bottom: 26px;
+  }
+  .photo-edit-stat{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+  }
+  .photo-edit-stat-num{
+    font-size: 30px;
+    font-weight: bold;
+    color: var(--gold);
+  }
+  .photo-edit-stat-label{
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .upload-btn{
+    display:inline-flex;
     align-items:center;
     justify-content:center;
-    font-size: 15px;
+    cursor:pointer;
   }
-  .photo-edit-btn:hover{ border-color: var(--gold); }
+  .avatar-circle.avatar-md{
+    width: 76px;
+    height: 76px;
+    border: 3px solid var(--red);
+    box-shadow: 0 0 20px var(--red-glow);
+    margin-bottom: 4px;
+  }
+  .vote-leader-row{
+    display:flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .vote-leader-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background: linear-gradient(160deg, #2b1418, #3a191d);
+    border: 1px solid var(--red);
+    box-shadow: 0 0 20px var(--red-glow);
+    border-radius: 16px;
+    padding: 16px 26px;
+    min-width: 160px;
+  }
+  .vote-leader-name{
+    font-size: 19px;
+    color: #ffdede;
+    text-align:center;
+  }
+  .vote-leader-label{
+    color: var(--red);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: bold;
+    margin-top: 2px;
+  }
+  .vote-leader-count{
+    font-weight: bold;
+    font-size: 30px;
+    color: var(--red);
+    margin-top: 6px;
+  }
+  .vote-leader-box.vote-pulse{
+    animation: votePulse .7s ease;
+  }
+  .shield-spotlight-row{
+    display:flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+  .shield-spotlight-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background: linear-gradient(160deg, #16281c, #1c3524);
+    border: 1px solid var(--safe);
+    box-shadow: 0 0 20px rgba(63,157,94,0.45);
+    border-radius: 16px;
+    padding: 16px 26px;
+    min-width: 160px;
+  }
+  .shield-spotlight-name{
+    font-size: 19px;
+    color: var(--text);
+    text-align:center;
+    margin-top: 4px;
+  }
+  .shield-spotlight-box .shield-badge{
+    margin-right: 0;
+    margin-top: 8px;
+  }
+  .shield-spotlight-box .avatar-circle.avatar-md{
+    border-color: #000;
+    box-shadow: none;
+  }
   #room-indicator{
     position: fixed;
     bottom: 12px;
@@ -490,7 +599,9 @@
     victimHistory: [],
     photoVersion: 0,
     lastBanished: null,
-    lastBanishedVotes: null
+    lastBanishedVotes: null,
+    voteTotals: {},
+    shieldCounts: {}
   };
 
   function el(tag, attrs, children){
@@ -582,43 +693,75 @@
   }
 
   function uploadPlayerPhoto(name, file, feedbackEl){
-    if(feedbackEl) feedbackEl.textContent = '⏳';
+    var originalText = feedbackEl ? feedbackEl.textContent : null;
+    if(feedbackEl) feedbackEl.textContent = 'Bezig...';
     resizeImageToJpeg(file, 480, 0.85, function(blob){
       if(!blob){
-        if(feedbackEl) feedbackEl.textContent = '📷';
+        if(feedbackEl) feedbackEl.textContent = originalText || 'Kies foto';
         alert('Kon deze foto niet verwerken.');
         return;
       }
       var path = encodeURIComponent(name) + '.jpg';
       supabaseClient.storage.from('player-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
         .then(function(res){
-          if(feedbackEl) feedbackEl.textContent = '📷';
+          if(feedbackEl) feedbackEl.textContent = originalText || 'Kies foto';
           if(res.error){ alert('Uploaden mislukt: ' + res.error.message); return; }
           state.photoVersion = Date.now();
           pushStateForPhoto();
           paint();
         })
         .catch(function(err){
-          if(feedbackEl) feedbackEl.textContent = '📷';
+          if(feedbackEl) feedbackEl.textContent = originalText || 'Kies foto';
           alert('Uploaden mislukt: ' + ((err && err.message) || String(err)));
         });
     });
   }
 
-  // Kleine cameraknop naast een naam — enige plek in de app waar foto's bewerkt kunnen worden.
-  function makePhotoEditButton(name){
-    var label = el('label', {class:'photo-edit-btn', text:'📷'});
-    label.addEventListener('click', function(ev){ ev.stopPropagation(); });
+  // Welke speler er nu (indien van toepassing) op het losse foto-uploadscherm staat.
+  // Alleen lokaal, niet gesynchroniseerd — puur navigatie binnen dit toestel.
+  var photoEditTarget = null;
+
+  // Los scherm om de foto van één speler te uploaden — je komt hier door op een naam te tikken.
+  function renderPhotoEditScreen(name){
+    var screen = el('div', {class:'screen'});
+    var backBtn = el('button', {class:'action back-btn', text:'← Terug'});
+    backBtn.addEventListener('click', function(){ photoEditTarget = null; paint(); });
+    screen.appendChild(backBtn);
+
+    screen.appendChild(el('h1', {text: name}));
+
+    var previewWrap = el('div', {class:'photo-edit-preview'});
+    previewWrap.appendChild(makeAvatar(name, 'avatar-lg'));
+    screen.appendChild(previewWrap);
+
+    var statsRow = el('div', {class:'photo-edit-stats'});
+    var voteTotal = (state.voteTotals && state.voteTotals[name]) || 0;
+    var voteStat = el('div', {class:'photo-edit-stat'});
+    voteStat.appendChild(el('div', {class:'photo-edit-stat-num', text: String(voteTotal)}));
+    voteStat.appendChild(el('div', {class:'photo-edit-stat-label', text: 'tegenstem' + (voteTotal === 1 ? '' : 'men')}));
+    statsRow.appendChild(voteStat);
+    if(state.shielded.indexOf(name) !== -1){
+      var shieldStat = el('div', {class:'photo-edit-stat'});
+      shieldStat.appendChild(makeShieldBadge());
+      statsRow.appendChild(shieldStat);
+    }
+    screen.appendChild(statsRow);
+
+    var label = el('label', {class:'action primary upload-btn'});
+    var labelText = el('span', {text:'Kies foto'});
+    label.appendChild(labelText);
     var input = el('input', {type:'file', accept:'image/*'});
     input.style.display = 'none';
     input.addEventListener('change', function(){
       var file = input.files && input.files[0];
       input.value = '';
       if(!file) return;
-      uploadPlayerPhoto(name, file, label);
+      uploadPlayerPhoto(name, file, labelText);
     });
     label.appendChild(input);
-    return label;
+    screen.appendChild(label);
+
+    return screen;
   }
 
   // Onthoudt de vorige stemstand tussen twee tekeningen, voor het pulse-effect.
@@ -725,16 +868,34 @@
       voteSection.appendChild(el('div', {class:'status-heading', text:'Kandidaten'}));
       voteSection.appendChild(el('div', {class:'votes-remaining', text: remaining + ' van de ' + aliveForVotes.length + ' stemmen nog te vergeven'}));
 
+      // Wie op dit moment de meeste stemmen heeft, krijgt een eigen kader bovenaan.
+      var leaders = maxVotes > 0 ? aliveForVotes.filter(function(p){ return (state.votes[p.name] || 0) === maxVotes; }) : [];
+      var others = leaders.length ? aliveForVotes.filter(function(p){ return (state.votes[p.name] || 0) !== maxVotes; }) : aliveForVotes;
+
+      if(leaders.length){
+        var spotlightRow = el('div', {class:'vote-leader-row'});
+        leaders.forEach(function(p){
+          var v = state.votes[p.name] || 0;
+          var justGotVote = v > (lastSeenVoteCounts[p.name] || 0);
+          var box = el('div', {class:'vote-leader-box' + (justGotVote ? ' vote-pulse' : '')});
+          box.appendChild(makeAvatar(p.name, 'avatar-md'));
+          box.appendChild(el('div', {class:'vote-leader-name', text: p.name}));
+          box.appendChild(el('div', {class:'vote-leader-label', text:'meeste stemmen'}));
+          box.appendChild(el('div', {class:'vote-leader-count', text: String(v)}));
+          spotlightRow.appendChild(box);
+          lastSeenVoteCounts[p.name] = v;
+        });
+        voteSection.appendChild(spotlightRow);
+      }
+
       var voteList = el('div', {class:'vote-list'});
-      aliveForVotes.forEach(function(p){
+      others.forEach(function(p){
         var v = state.votes[p.name] || 0;
-        var isLeader = v > 0 && v === maxVotes;
         var justGotVote = v > (lastSeenVoteCounts[p.name] || 0);
-        var row = el('div', {class:'vote-list-row' + (isLeader ? ' leader' : '') + (justGotVote ? ' vote-pulse' : '')});
+        var row = el('div', {class:'vote-list-row' + (justGotVote ? ' vote-pulse' : '')});
         row.appendChild(makeAvatar(p.name));
         var nameWrap = el('span', {class:'vote-list-name'});
         nameWrap.appendChild(document.createTextNode(p.name));
-        if(isLeader) nameWrap.appendChild(el('span', {class:'leader-tag', text:'meeste stemmen'}));
         row.appendChild(nameWrap);
         row.appendChild(el('span', {class:'vote-list-count', text: String(v)}));
         voteList.appendChild(row);
@@ -759,7 +920,7 @@
     // Alle andere schermen: bovenin de actieve spelers (schild eerst), daaronder apart vermoord (💀) en verbannen (⚔️).
     function makeCandidateRow(p, opts){
       opts = opts || {};
-      var row = el('div', {class:'vote-list-row' + (opts.dead ? ' dead' : '') + (opts.shielded ? ' shielded' : '')});
+      var row = el('div', {class:'vote-list-row clickable' + (opts.dead ? ' dead' : '') + (opts.shielded ? ' shielded' : '')});
       row.appendChild(makeAvatar(p.name, opts.dead ? 'avatar-dead' : ''));
 
       var nameWrap = el('span', {class:'vote-list-name'});
@@ -775,7 +936,8 @@
       row.appendChild(nameWrap);
 
       if(opts.shielded) row.appendChild(makeShieldBadge());
-      row.appendChild(makePhotoEditButton(p.name));
+      // Tik op een speler om diens foto te uploaden/wijzigen.
+      row.addEventListener('click', function(){ photoEditTarget = p.name; paint(); });
       return row;
     }
 
@@ -793,10 +955,6 @@
 
     var activePlayers = state.players.filter(function(p){
       return p.alive || (holdBackFirstMurder && p.name === firstMurderVictim);
-    }).sort(function(a, b){
-      var sa = state.shielded.indexOf(a.name) !== -1, sb = state.shielded.indexOf(b.name) !== -1;
-      if(sa !== sb) return sa ? -1 : 1; // spelers met schild bovenaan
-      return 0;
     });
     var murderedPlayers = state.players.filter(function(p){
       return !p.alive && p.deathType === 'murder' && !(holdBackFirstMurder && p.name === firstMurderVictim);
@@ -804,11 +962,29 @@
     var banishedPlayers = state.players.filter(function(p){ return !p.alive && p.deathType === 'ban'; });
     var otherDeadPlayers = state.players.filter(function(p){ return !p.alive && p.deathType !== 'murder' && p.deathType !== 'ban'; });
 
+    // Spelers met een schild krijgen net als de stemleider een eigen kader bovenaan.
+    var shieldedActive = activePlayers.filter(function(p){ return state.shielded.indexOf(p.name) !== -1; });
+    var restActive = activePlayers.filter(function(p){ return state.shielded.indexOf(p.name) === -1; });
+
     var activeSection = el('div', {class:'status-section'});
     activeSection.appendChild(el('div', {class:'status-heading', text:'Actieve spelers'}));
+
+    if(shieldedActive.length){
+      var shieldRow = el('div', {class:'shield-spotlight-row'});
+      shieldedActive.forEach(function(p){
+        var box = el('div', {class:'shield-spotlight-box clickable'});
+        box.appendChild(makeAvatar(p.name, 'avatar-md'));
+        box.appendChild(el('div', {class:'shield-spotlight-name', text: p.name}));
+        box.appendChild(makeShieldBadge());
+        box.addEventListener('click', function(){ photoEditTarget = p.name; paint(); });
+        shieldRow.appendChild(box);
+      });
+      activeSection.appendChild(shieldRow);
+    }
+
     var activeList = el('div', {class:'vote-list'});
-    activePlayers.forEach(function(p){
-      activeList.appendChild(makeCandidateRow(p, {shielded: state.shielded.indexOf(p.name) !== -1}));
+    restActive.forEach(function(p){
+      activeList.appendChild(makeCandidateRow(p, {shielded:false}));
     });
     activeSection.appendChild(activeList);
     screen.appendChild(activeSection);
@@ -846,6 +1022,10 @@
   function paint(){
     var app = document.getElementById('app');
     app.innerHTML = '';
+    if(photoEditTarget){
+      app.appendChild(renderPhotoEditScreen(photoEditTarget));
+      return;
+    }
     app.appendChild(renderStatusDashboard());
   }
 
