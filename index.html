@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>De Verraders — Status</title>
+<style>
+  :root{
+    --bg: #0b0d14;
+    --bg2: #12151f;
+    --panel: #1a1e2c;
+    --panel2: #232939;
+    --border: #2f3549;
+    --red: #c1272d;
+    --red-dim: #6e1b1f;
+    --red-glow: rgba(193,39,45,0.45);
+    --gold: #d4af37;
+    --gold-glow: rgba(212,175,55,0.4);
+    --text: #f2ecdf;
+    --text-dim: #9aa0b4;
+    --safe: #3f9d5e;
+  }
+  *{ box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+  html, body{
+    margin:0; padding:0; height:100%;
+    background: radial-gradient(ellipse at top, var(--bg2), var(--bg) 70%);
+    color: var(--text);
+    font-family: 'Georgia', 'Iowan Old Style', 'Palatino', serif;
+    overflow-x: hidden;
+  }
+  .screen{
+    min-height: 100dvh;
+    display:flex; flex-direction:column; align-items:center;
+    padding: 24px 20px 40px;
+  }
+  h1{
+    font-size: clamp(22px, 3.2vw, 34px);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-align:center;
+    margin: 8px 0 4px;
+    text-shadow: 0 0 18px rgba(212,175,55,0.35);
+  }
+  .subtitle{
+    color: var(--text-dim);
+    font-size: 14px;
+    letter-spacing: 1px;
+    margin-bottom: 18px;
+    text-align:center;
+  }
+  .instruction{
+    font-size: clamp(18px, 2.6vw, 26px);
+    text-align:center;
+    margin: 6px 0 22px;
+    color: var(--text);
+    min-height: 34px;
+  }
+  .bar{
+    display:flex; gap:12px; margin-top: 26px; flex-wrap:wrap; justify-content:center;
+  }
+  button.action{
+    font-family: inherit;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-size: 15px;
+    cursor:pointer;
+    letter-spacing: 0.5px;
+  }
+  button.action:hover{ border-color: var(--gold); }
+  button.action.primary{
+    background: var(--red);
+    border-color: var(--red);
+    color: white;
+  }
+  .add-row{
+    display:flex;
+    gap: 10px;
+    align-items:center;
+    margin-top: 10px;
+  }
+  input.text-input{
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 12px 16px;
+    font-size: 16px;
+    font-family: inherit;
+    width: 220px;
+  }
+  .status-section{
+    width: 100%;
+    max-width: 980px;
+    margin-top: 28px;
+  }
+  .status-heading{
+    font-size: 13px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .vote-list{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .vote-list-row{
+    display:flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 16px;
+    font-size: 16px;
+  }
+  .vote-list-row.leader{
+    border-color: var(--red);
+    box-shadow: 0 0 14px var(--red-glow);
+    background: linear-gradient(160deg, #2b1418, #3a191d);
+    color: #ffdede;
+  }
+  .vote-list-row.shielded{
+    border-color: var(--safe);
+    box-shadow: 0 0 14px rgba(63,157,94,0.5);
+  }
+  .leader-tag{
+    color: var(--red);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: bold;
+  }
+  .shield-badge{
+    display:flex;
+    align-items:center;
+    gap: 6px;
+    color: var(--safe);
+    font-weight: bold;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+    margin-right: 8px;
+  }
+  .shield-badge svg{
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+  }
+  .vote-list-row.dead{
+    opacity: 0.55;
+  }
+  .vote-list-name{
+    flex: 1;
+    min-width: 0;
+    display:flex;
+    align-items:center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .history-note{
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+  .vote-list-count{
+    font-weight: bold;
+    font-size: 22px;
+    color: var(--red);
+  }
+  .votes-remaining{
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+    margin-bottom: 14px;
+    letter-spacing: 0.5px;
+  }
+  @keyframes votePulse{
+    0%{ transform: scale(1); box-shadow: 0 0 0 rgba(212,175,55,0); }
+    35%{ transform: scale(1.04); box-shadow: 0 0 26px var(--gold-glow); border-color: var(--gold); }
+    100%{ transform: scale(1); box-shadow: 0 0 0 rgba(212,175,55,0); }
+  }
+  .vote-list-row.vote-pulse{
+    animation: votePulse .7s ease;
+  }
+  .dead-name{
+    text-decoration: line-through;
+  }
+  .avatar-circle{
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--panel);
+    border: 2px solid var(--border);
+    overflow: hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink: 0;
+  }
+  .avatar-circle.avatar-dead{
+    opacity: 0.6;
+    filter: grayscale(0.7);
+  }
+  .avatar-circle.avatar-lg{
+    width: 160px;
+    height: 160px;
+    border: 4px solid var(--red);
+    box-shadow: 0 0 30px var(--red-glow);
+    margin-bottom: 6px;
+  }
+  .avatar-img{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display:block;
+  }
+  .reveal-wrap{
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    min-height: 60vh; width:100%;
+  }
+  .reveal-label{ color: var(--text-dim); letter-spacing: 3px; font-size: 15px; text-transform: uppercase; margin-bottom: 10px;}
+  .reveal-name{
+    font-size: clamp(38px, 8vw, 84px);
+    color: var(--red);
+    text-shadow: 0 0 30px var(--red-glow);
+    text-align:center;
+    animation: pulse-in .5s ease;
+    margin: 6px 0 4px;
+  }
+  .reveal-sub{ color: var(--text-dim); font-size: 16px; margin-bottom: 6px; }
+  .reveal-votes{ color: var(--text-dim); font-size: 14px; letter-spacing: 1px; }
+  @keyframes pulse-in{
+    0%{ transform: scale(0.7); opacity:0; }
+    60%{ transform: scale(1.08); opacity:1; }
+    100%{ transform: scale(1); }
+  }
+  .photo-edit-btn{
+    cursor: pointer;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size: 15px;
+  }
+  .photo-edit-btn:hover{ border-color: var(--gold); }
+  #room-indicator{
+    position: fixed;
+    bottom: 12px;
+    left: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+    z-index: 20;
+    display:flex;
+    align-items:center;
+    gap: 10px;
+  }
+  #room-indicator .leave-link{
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .dot-status{
+    display:inline-block;
+    width:8px; height:8px;
+    border-radius:50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .dot-status.online{ background: var(--safe); box-shadow: 0 0 6px rgba(63,157,94,0.6); }
+  .dot-status.offline{ background: var(--red); box-shadow: 0 0 6px var(--red-glow); }
+  .dot-status.connecting{ background: var(--gold); box-shadow: 0 0 6px var(--gold-glow); }
+
+  /* ---------- ENG BOS: volledig scherm tijdens de nacht, geen spelersinfo zichtbaar ---------- */
+  .forest-scene{
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 50% 18%, #1a2233 0%, #060810 65%);
+    overflow: hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .forest-moon{
+    position:absolute;
+    top: 10%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 84px;
+    height: 84px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #f4f1e0, #cfcaa8 60%, #a9a37e 100%);
+    box-shadow: 0 0 60px rgba(244,241,224,0.3), 0 0 130px rgba(244,241,224,0.12);
+    opacity: 0.85;
+  }
+  .forest-fog{
+    position:absolute;
+    left:-25%;
+    right:-25%;
+    bottom: 20%;
+    height: 130px;
+    background: linear-gradient(90deg, transparent, rgba(180,190,210,0.14), transparent);
+    filter: blur(8px);
+    animation: forestDrift 20s linear infinite;
+  }
+  @keyframes forestDrift{
+    0%{ transform: translateX(-8%); }
+    100%{ transform: translateX(8%); }
+  }
+  .forest-tree-layer{ position:absolute; left:0; right:0; bottom:0; height:0; }
+  .forest-tree{
+    position:absolute;
+    bottom: -2px;
+    clip-path: polygon(50% 0%, 12% 100%, 88% 100%);
+    transform: translateX(-50%);
+  }
+  .forest-eye{
+    position:absolute;
+    width:5px; height:5px;
+    border-radius:50%;
+    background: var(--red);
+    box-shadow: 0 0 6px var(--red-glow), 0 0 12px var(--red-glow);
+    animation: forestBlink 7s ease-in-out infinite;
+  }
+  @keyframes forestBlink{
+    0%, 88%, 100%{ opacity: 0; }
+    91%, 96%{ opacity: 1; }
+  }
+  .forest-label{
+    position: relative;
+    z-index: 5;
+    color: #cfd6e6;
+    font-size: clamp(18px, 4vw, 28px);
+    letter-spacing: 3px;
+    text-align: center;
+    text-shadow: 0 0 20px rgba(180,190,220,0.5);
+    animation: forestPulse 4s ease-in-out infinite;
+    padding: 0 24px;
+  }
+  @keyframes forestPulse{
+    0%, 100%{ opacity: 0.5; }
+    50%{ opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<div id="room-indicator"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  // ---------- SYNC (leest hetzelfde spel als de begeleider-iPad, via Supabase) ----------
+  var SUPABASE_URL = 'https://gtdzuuvlluyofkvbpusx.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd0ZHp1dXZsbHV5b2ZrdmJwdXN4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIwNTUwMjAsImV4cCI6MjA2NzYzMTAyMH0.DcHwCLuyyVJvs0Ugpr7bE0Az5_tkES4kE_P0SUFOyus';
+  var ROOM_TABLE = 'verraders_game_state';
+  var ROOM_KEY = 'verraders-status-room-code'; // eigen sleutel — niet gedeeld met de begeleiderpagina
+
+  var supabaseClient = (window.supabase && window.supabase.createClient)
+    ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
+      })
+    : null;
+
+  var roomCode = null;
+  var realtimeChannel = null;
+  var syncStatus = 'offline'; // offline | connecting | online
+  var lastAppliedUpdatedAt = null;
+  var pollTimer = null;
+  var lastSyncError = '';
+
+  function loadRoomCode(){
+    try{ return localStorage.getItem(ROOM_KEY); } catch(e){ return null; }
+  }
+  function saveRoomCode(code){
+    try{ localStorage.setItem(ROOM_KEY, code); } catch(e){}
+  }
+  function clearRoomCode(){
+    try{ localStorage.removeItem(ROOM_KEY); } catch(e){}
+  }
+
+  function setSyncStatus(s, errMsg){
+    syncStatus = s;
+    if(errMsg) lastSyncError = errMsg;
+    if(s === 'online') lastSyncError = '';
+    updateRoomIndicator();
+  }
+
+  function updateRoomIndicator(){
+    var box = document.getElementById('room-indicator');
+    if(!box) return;
+    box.innerHTML = '';
+    if(!roomCode){ return; }
+    var dotClass = syncStatus === 'online' ? 'online' : (syncStatus === 'connecting' ? 'connecting' : 'offline');
+    var label = syncStatus === 'online' ? 'verbonden (live)' : (syncStatus === 'connecting' ? 'synchroniseert…' : 'offline');
+    if(syncStatus === 'offline' && lastSyncError){ label += ' — ' + lastSyncError; }
+    var span = document.createElement('span');
+    var dot = document.createElement('span');
+    dot.className = 'dot-status ' + dotClass;
+    span.appendChild(dot);
+    span.appendChild(document.createTextNode('Kamer ' + roomCode + ' — ' + label));
+    box.appendChild(span);
+    var leave = document.createElement('span');
+    leave.className = 'leave-link';
+    leave.textContent = 'andere kamer';
+    leave.addEventListener('click', function(){
+      clearRoomCode();
+      location.reload();
+    });
+    box.appendChild(leave);
+  }
+
+  function applyIncoming(row){
+    if(!row || !row.state) return;
+    var incoming = row.state;
+    if(typeof incoming === 'string'){
+      try{ incoming = JSON.parse(incoming); } catch(e){ return; }
+    }
+    if(row.updated_at && row.updated_at === lastAppliedUpdatedAt) return;
+    state = incoming;
+    if(row.updated_at) lastAppliedUpdatedAt = row.updated_at;
+    paint();
+  }
+
+  function subscribeRealtime(){
+    if(!supabaseClient || !roomCode) return;
+    if(realtimeChannel){ supabaseClient.removeChannel(realtimeChannel); }
+    realtimeChannel = supabaseClient
+      .channel('room-' + roomCode + '-status')
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: ROOM_TABLE, filter: 'room_code=eq.' + roomCode
+      }, function(payload){
+        applyIncoming(payload.new);
+      })
+      .subscribe(function(status){
+        if(status === 'SUBSCRIBED') setSyncStatus('online');
+        else if(status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED'){
+          if(syncStatus === 'online') setSyncStatus('connecting');
+        }
+      });
+  }
+
+  function startPolling(){
+    if(pollTimer) return;
+    pollTimer = setInterval(function(){
+      if(roomCode && supabaseClient && document.visibilityState === 'visible'){
+        refreshFromRemote();
+      }
+    }, 3000);
+  }
+
+  function refreshFromRemote(){
+    if(!supabaseClient || !roomCode) return;
+    supabaseClient.from(ROOM_TABLE).select('state, updated_at').eq('room_code', roomCode).maybeSingle()
+      .then(function(res){
+        if(res.error){ setSyncStatus('offline', res.error.message || String(res.error)); return; }
+        if(!res.data){ setSyncStatus('offline', 'kamer niet gevonden'); return; }
+        applyIncoming(res.data);
+        if(syncStatus !== 'online') setSyncStatus('connecting');
+      })
+      .catch(function(err){ setSyncStatus('offline', (err && err.message) || String(err)); });
+  }
+
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && roomCode){
+      refreshFromRemote();
+    }
+  });
+
+  // Alleen de velden die dit scherm nodig heeft — komt overeen met de begeleiderpagina.
+  var state = {
+    phase: 'setup',
+    players: [],
+    night: 0,
+    shielded: [],
+    votes: {},
+    shieldMode: 'schild',
+    victimHistory: [],
+    photoVersion: 0,
+    lastBanished: null,
+    lastBanishedVotes: null
+  };
+
+  function el(tag, attrs, children){
+    var e = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function(k){
+      if(k === 'class') e.className = attrs[k];
+      else if(k === 'text') e.textContent = attrs[k];
+      else if(k.indexOf('on') === 0) e.addEventListener(k.slice(2), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    });
+    (children||[]).forEach(function(c){ if(c) e.appendChild(c); });
+    return e;
+  }
+
+  function alivePlayers(){
+    return state.players.filter(function(p){ return p.alive; });
+  }
+
+  // ---------- SPELERSFOTO'S (uploaden kan alléén hier, op de statuspagina) ----------
+  // Foto's gaan naar Supabase Storage (bucket "player-photos") — ze verschijnen daarna
+  // automatisch op zowel deze pagina als het begeleiderscherm. Geen foto voor iemand?
+  // Dan blijft het gewoon een lege cirkel.
+  var PHOTO_BUCKET_URL = SUPABASE_URL + '/storage/v1/object/public/player-photos/';
+
+  function photoSrc(name){
+    return PHOTO_BUCKET_URL + encodeURIComponent(name) + '.jpg?v=' + (state.photoVersion || 0);
+  }
+
+  function makeAvatar(name, extraClass){
+    var wrap = el('div', {class:'avatar-circle' + (extraClass ? ' ' + extraClass : '')});
+    var img = el('img', {class:'avatar-img', alt:''});
+    img.addEventListener('error', function(){ img.style.display = 'none'; });
+    wrap.appendChild(img);
+    img.src = photoSrc(name);
+    return wrap;
+  }
+
+  // SVG i.p.v. het 🛡-emoji, zodat de kleur ook echt groen gezet kan worden.
+  function svgEl(tag, attrs){
+    var e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    Object.keys(attrs || {}).forEach(function(k){ e.setAttribute(k, attrs[k]); });
+    return e;
+  }
+
+  function makeShieldBadge(){
+    var badge = el('span', {class:'shield-badge'});
+    var svg = svgEl('svg', {viewBox:'0 0 24 24', fill:'currentColor'});
+    svg.appendChild(svgEl('path', {d:'M12 2 L20 5.5 V11 C20 16.5 16.5 20.8 12 22 C7.5 20.8 4 16.5 4 11 V5.5 Z'}));
+    badge.appendChild(svg);
+    badge.appendChild(el('span', {text:'Schild'}));
+    return badge;
+  }
+
+  // Schaalt de gekozen foto terug naar max 480px en maakt er een jpeg van, zodat uploads
+  // klein en snel blijven (belangrijk op mobiel dataverkeer tijdens het spel).
+  function resizeImageToJpeg(file, maxDim, quality, cb){
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function(){
+      URL.revokeObjectURL(url);
+      var w = img.naturalWidth, h = img.naturalHeight;
+      var scale = Math.min(1, maxDim / Math.max(w, h));
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement('canvas');
+      canvas.width = cw; canvas.height = ch;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, cw, ch);
+      canvas.toBlob(function(blob){ cb(blob); }, 'image/jpeg', quality);
+    };
+    img.onerror = function(){ URL.revokeObjectURL(url); cb(null); };
+    img.src = url;
+  }
+
+  // Zet de huidige (net bijgewerkte) state terug naar de gedeelde kamer, zodat het
+  // nieuwe photoVersion-nummer meteen naar alle aangesloten schermen doorstroomt.
+  function pushStateForPhoto(){
+    if(!supabaseClient || !roomCode) return;
+    var stamp = new Date().toISOString();
+    supabaseClient.from(ROOM_TABLE).upsert({
+      room_code: roomCode,
+      state: state,
+      updated_at: stamp
+    }, { onConflict: 'room_code' }).then(function(res){
+      if(res.error){ setSyncStatus('offline', res.error.message || String(res.error)); return; }
+      lastAppliedUpdatedAt = stamp;
+    }).catch(function(err){ setSyncStatus('offline', (err && err.message) || String(err)); });
+  }
+
+  function uploadPlayerPhoto(name, file, feedbackEl){
+    if(feedbackEl) feedbackEl.textContent = '⏳';
+    resizeImageToJpeg(file, 480, 0.85, function(blob){
+      if(!blob){
+        if(feedbackEl) feedbackEl.textContent = '📷';
+        alert('Kon deze foto niet verwerken.');
+        return;
+      }
+      var path = encodeURIComponent(name) + '.jpg';
+      supabaseClient.storage.from('player-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+        .then(function(res){
+          if(feedbackEl) feedbackEl.textContent = '📷';
+          if(res.error){ alert('Uploaden mislukt: ' + res.error.message); return; }
+          state.photoVersion = Date.now();
+          pushStateForPhoto();
+          paint();
+        })
+        .catch(function(err){
+          if(feedbackEl) feedbackEl.textContent = '📷';
+          alert('Uploaden mislukt: ' + ((err && err.message) || String(err)));
+        });
+    });
+  }
+
+  // Kleine cameraknop naast een naam — enige plek in de app waar foto's bewerkt kunnen worden.
+  function makePhotoEditButton(name){
+    var label = el('label', {class:'photo-edit-btn', text:'📷'});
+    label.addEventListener('click', function(ev){ ev.stopPropagation(); });
+    var input = el('input', {type:'file', accept:'image/*'});
+    input.style.display = 'none';
+    input.addEventListener('change', function(){
+      var file = input.files && input.files[0];
+      input.value = '';
+      if(!file) return;
+      uploadPlayerPhoto(name, file, label);
+    });
+    label.appendChild(input);
+    return label;
+  }
+
+  // Onthoudt de vorige stemstand tussen twee tekeningen, voor het pulse-effect.
+  var lastSeenVoteCounts = {};
+
+  // De fases waarin de verraders in het geheim kiezen — hier mag niemand iets van de
+  // spelersstatus zien, dus dan tonen we alleen het bos.
+  var NIGHT_PHASES = ['nightHandoff', 'round1', 'round2', 'round3', 'forced', 'noVictim'];
+
+  function buildTreeLayer(count, minW, maxW, minH, maxH, color){
+    var layer = el('div', {class:'forest-tree-layer'});
+    for(var i = 0; i < count; i++){
+      var w = minW + Math.random() * (maxW - minW);
+      var h = minH + Math.random() * (maxH - minH);
+      var leftPct = (i / (count - 1)) * 100 + (Math.random() * 8 - 4);
+      var tree = el('div', {class:'forest-tree'});
+      tree.style.left = Math.max(0, Math.min(100, leftPct)) + '%';
+      tree.style.width = w + 'px';
+      tree.style.height = h + 'px';
+      tree.style.background = color;
+      layer.appendChild(tree);
+    }
+    return layer;
+  }
+
+  // ---------- ENG BOS: tijdens de nacht is dit het hele statusscherm — geen spelersinfo. ----------
+  function renderNightForest(){
+    var scene = el('div', {class:'forest-scene'});
+    scene.appendChild(el('div', {class:'forest-moon'}));
+    scene.appendChild(el('div', {class:'forest-fog'}));
+    scene.appendChild(buildTreeLayer(9, 40, 70, 90, 160, '#12151c'));
+    scene.appendChild(buildTreeLayer(7, 60, 110, 150, 260, '#06070a'));
+    for(var i = 0; i < 3; i++){
+      var eye = el('div', {class:'forest-eye'});
+      eye.style.left = (15 + Math.random() * 70) + '%';
+      eye.style.bottom = (10 + Math.random() * 25) + '%';
+      eye.style.animationDelay = (Math.random() * 6) + 's';
+      scene.appendChild(eye);
+    }
+    scene.appendChild(el('div', {class:'forest-label', text:'De nacht valt... stil, de verraders kiezen'}));
+    return scene;
+  }
+
+  // Nooit state.traitors tonen hier — verraders blijven ook op dit scherm geheim.
+  function renderBanRevealScene(){
+    var screen = el('div', {class:'screen'});
+    var wrap = el('div', {class:'reveal-wrap'});
+    wrap.appendChild(makeAvatar(state.lastBanished, 'avatar-lg'));
+    wrap.appendChild(el('div', {class:'reveal-label', text:'is verbannen'}));
+    wrap.appendChild(el('div', {class:'reveal-name', text: state.lastBanished}));
+    if(state.lastBanishedVotes){
+      wrap.appendChild(el('div', {class:'reveal-votes', text: state.lastBanishedVotes + ' stem' + (state.lastBanishedVotes === 1 ? '' : 'men')}));
+    }
+    screen.appendChild(wrap);
+    return screen;
+  }
+
+  function renderStatusDashboard(){
+    if(NIGHT_PHASES.indexOf(state.phase) !== -1){
+      return renderNightForest();
+    }
+    if(state.phase === 'banReveal'){
+      return renderBanRevealScene();
+    }
+
+    var screen = el('div', {class:'screen'});
+    screen.appendChild(el('h1', {text:'Status'}));
+
+    if(state.players.length === 0){
+      screen.appendChild(el('div', {class:'subtitle', text:'Wachten tot het spel begint...'}));
+      return screen;
+    }
+
+    var isVoting = state.phase === 'shield' && state.shieldMode === 'verbannen';
+
+    var phaseLabel;
+    if(state.phase === 'shield'){
+      phaseLabel = isVoting
+        ? 'Er wordt gestemd voor verbanning'
+        : 'Een nieuwe dag';
+    } else if(state.phase === 'reveal'){
+      phaseLabel = 'Nacht ' + state.night + ' is voorbij';
+    } else {
+      phaseLabel = 'Het spel wordt voorbereid...';
+    }
+    screen.appendChild(el('div', {class:'subtitle', text: phaseLabel}));
+
+    // Tijdens het stemmen: alléén de kandidaten, met live stemeffect — geen namenlijst/geschiedenis erbij.
+    if(isVoting){
+      var aliveForVotes = alivePlayers().slice();
+      var totalCast = aliveForVotes.reduce(function(sum, p){ return sum + (state.votes[p.name] || 0); }, 0);
+      if(totalCast === 0) lastSeenVoteCounts = {};
+
+      aliveForVotes.sort(function(a, b){
+        var va = state.votes[a.name] || 0, vb = state.votes[b.name] || 0;
+        if(vb !== va) return vb - va;
+        return a.name.localeCompare(b.name);
+      });
+      var maxVotes = 0;
+      aliveForVotes.forEach(function(p){ maxVotes = Math.max(maxVotes, state.votes[p.name] || 0); });
+      var remaining = Math.max(0, aliveForVotes.length - totalCast);
+
+      var voteSection = el('div', {class:'status-section'});
+      voteSection.appendChild(el('div', {class:'status-heading', text:'Kandidaten'}));
+      voteSection.appendChild(el('div', {class:'votes-remaining', text: remaining + ' van de ' + aliveForVotes.length + ' stemmen nog te vergeven'}));
+
+      var voteList = el('div', {class:'vote-list'});
+      aliveForVotes.forEach(function(p){
+        var v = state.votes[p.name] || 0;
+        var isLeader = v > 0 && v === maxVotes;
+        var justGotVote = v > (lastSeenVoteCounts[p.name] || 0);
+        var row = el('div', {class:'vote-list-row' + (isLeader ? ' leader' : '') + (justGotVote ? ' vote-pulse' : '')});
+        row.appendChild(makeAvatar(p.name));
+        var nameWrap = el('span', {class:'vote-list-name'});
+        nameWrap.appendChild(document.createTextNode(p.name));
+        if(isLeader) nameWrap.appendChild(el('span', {class:'leader-tag', text:'meeste stemmen'}));
+        row.appendChild(nameWrap);
+        row.appendChild(el('span', {class:'vote-list-count', text: String(v)}));
+        voteList.appendChild(row);
+        lastSeenVoteCounts[p.name] = v;
+      });
+      voteSection.appendChild(voteList);
+      screen.appendChild(voteSection);
+      return screen;
+    }
+
+    // Laatste vermelding voor deze naam in de geschiedenis — komt kort achter de naam te staan.
+    function findHistoryNote(name){
+      for(var i = state.victimHistory.length - 1; i >= 0; i--){
+        var entry = state.victimHistory[i];
+        if(entry.victim === name){
+          return (entry.type === 'ban' ? 'verbannen' : 'vermoord') + ' op dag ' + entry.night;
+        }
+      }
+      return null;
+    }
+
+    // Alle andere schermen: bovenin de actieve spelers (schild eerst), daaronder apart vermoord (💀) en verbannen (⚔️).
+    function makeCandidateRow(p, opts){
+      opts = opts || {};
+      var row = el('div', {class:'vote-list-row' + (opts.dead ? ' dead' : '') + (opts.shielded ? ' shielded' : '')});
+      row.appendChild(makeAvatar(p.name, opts.dead ? 'avatar-dead' : ''));
+
+      var nameWrap = el('span', {class:'vote-list-name'});
+      var nameText = (opts.icon ? opts.icon + ' ' : '') + p.name;
+      if(opts.dead){
+        // Doorstrepen alléén op de naam zelf — anders trekt Safari de streep ook door de notitie heen.
+        nameWrap.appendChild(el('span', {class:'dead-name', text: nameText}));
+        var note = findHistoryNote(p.name);
+        if(note) nameWrap.appendChild(el('span', {class:'history-note', text: note}));
+      } else {
+        nameWrap.appendChild(document.createTextNode(nameText));
+      }
+      row.appendChild(nameWrap);
+
+      if(opts.shielded) row.appendChild(makeShieldBadge());
+      row.appendChild(makePhotoEditButton(p.name));
+      return row;
+    }
+
+    // Uitzondering: het allereerste slachtoffer (Nacht 1) blijft op het overzicht gewoon
+    // bij de actieve spelers staan totdat de eerste verbanning heeft plaatsgevonden.
+    var firstBanHappened = state.victimHistory.some(function(e){ return e.type === 'ban'; });
+    var firstMurderVictim = null;
+    for(var hi = 0; hi < state.victimHistory.length; hi++){
+      if(state.victimHistory[hi].type === 'murder' && state.victimHistory[hi].victim){
+        firstMurderVictim = state.victimHistory[hi].victim;
+        break;
+      }
+    }
+    var holdBackFirstMurder = firstMurderVictim && !firstBanHappened;
+
+    var activePlayers = state.players.filter(function(p){
+      return p.alive || (holdBackFirstMurder && p.name === firstMurderVictim);
+    }).sort(function(a, b){
+      var sa = state.shielded.indexOf(a.name) !== -1, sb = state.shielded.indexOf(b.name) !== -1;
+      if(sa !== sb) return sa ? -1 : 1; // spelers met schild bovenaan
+      return 0;
+    });
+    var murderedPlayers = state.players.filter(function(p){
+      return !p.alive && p.deathType === 'murder' && !(holdBackFirstMurder && p.name === firstMurderVictim);
+    });
+    var banishedPlayers = state.players.filter(function(p){ return !p.alive && p.deathType === 'ban'; });
+    var otherDeadPlayers = state.players.filter(function(p){ return !p.alive && p.deathType !== 'murder' && p.deathType !== 'ban'; });
+
+    var activeSection = el('div', {class:'status-section'});
+    activeSection.appendChild(el('div', {class:'status-heading', text:'Actieve spelers'}));
+    var activeList = el('div', {class:'vote-list'});
+    activePlayers.forEach(function(p){
+      activeList.appendChild(makeCandidateRow(p, {shielded: state.shielded.indexOf(p.name) !== -1}));
+    });
+    activeSection.appendChild(activeList);
+    screen.appendChild(activeSection);
+
+    if(murderedPlayers.length){
+      var murderedSection = el('div', {class:'status-section'});
+      murderedSection.appendChild(el('div', {class:'status-heading', text:'Vermoord'}));
+      var murderedList = el('div', {class:'vote-list'});
+      murderedPlayers.forEach(function(p){ murderedList.appendChild(makeCandidateRow(p, {dead:true, icon:'💀'})); });
+      murderedSection.appendChild(murderedList);
+      screen.appendChild(murderedSection);
+    }
+
+    if(banishedPlayers.length){
+      var banishedSection = el('div', {class:'status-section'});
+      banishedSection.appendChild(el('div', {class:'status-heading', text:'Verbannen'}));
+      var banishedList = el('div', {class:'vote-list'});
+      banishedPlayers.forEach(function(p){ banishedList.appendChild(makeCandidateRow(p, {dead:true, icon:'⚔️'})); });
+      banishedSection.appendChild(banishedList);
+      screen.appendChild(banishedSection);
+    }
+
+    if(otherDeadPlayers.length){
+      var otherSection = el('div', {class:'status-section'});
+      otherSection.appendChild(el('div', {class:'status-heading', text:'Afgevallen'}));
+      var otherList = el('div', {class:'vote-list'});
+      otherDeadPlayers.forEach(function(p){ otherList.appendChild(makeCandidateRow(p, {dead:true})); });
+      otherSection.appendChild(otherList);
+      screen.appendChild(otherSection);
+    }
+
+    return screen;
+  }
+
+  function paint(){
+    var app = document.getElementById('app');
+    app.innerHTML = '';
+    app.appendChild(renderStatusDashboard());
+  }
+
+  // ---------- CONNECT (alleen meekijken: kamercode invoeren, geen nieuw spel starten) ----------
+  function renderConnect(){
+    var screen = el('div', {class:'screen'});
+    screen.appendChild(el('h1', {text:'De Verraders — Status'}));
+    screen.appendChild(el('div', {class:'subtitle', text: supabaseClient ? 'Volg een lopend spel' : '⚠️ Kon niet met het synchronisatie-systeem verbinden'}));
+
+    var instr = el('div', {class:'instruction'});
+    instr.textContent = 'Vul de kamercode van het lopende spel in';
+    screen.appendChild(instr);
+
+    if(supabaseClient){
+      var addRow = el('div', {class:'add-row'});
+      var input = el('input', {class:'text-input', type:'text', placeholder:'Kamercode', maxlength:'8'});
+      input.style.textTransform = 'uppercase';
+      input.style.textAlign = 'center';
+      input.style.letterSpacing = '4px';
+      var joinBtn = el('button', {class:'action primary', text:'Verbinden'});
+      joinBtn.addEventListener('click', function(){
+        var code = input.value.trim().toUpperCase();
+        if(!code){ alert('Vul de kamercode in.'); return; }
+        connectToRoom(code);
+      });
+      input.addEventListener('keydown', function(e){ if(e.key === 'Enter') joinBtn.click(); });
+      addRow.appendChild(input);
+      addRow.appendChild(joinBtn);
+      screen.appendChild(addRow);
+    }
+
+    return screen;
+  }
+
+  function connectToRoom(code){
+    roomCode = code;
+    saveRoomCode(code);
+    updateRoomIndicator();
+    setSyncStatus('connecting');
+    supabaseClient.from(ROOM_TABLE).select('state, updated_at').eq('room_code', code).maybeSingle()
+      .then(function(res){
+        if(res.error){ lastSyncError = res.error.message || String(res.error); }
+        if(res.data && res.data.state){ applyIncoming(res.data); }
+        else { paint(); }
+        subscribeRealtime();
+        startPolling();
+      })
+      .catch(function(err){
+        lastSyncError = (err && err.message) || String(err);
+        paint();
+        subscribeRealtime();
+        startPolling();
+      });
+  }
+
+  function boot(){
+    var app = document.getElementById('app');
+    var existing = loadRoomCode();
+    if(existing && supabaseClient){
+      connectToRoom(existing);
+    } else {
+      app.innerHTML = '';
+      app.appendChild(renderConnect());
+    }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
