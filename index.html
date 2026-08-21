@@ -76,6 +76,32 @@
     border-color: var(--red);
     color: white;
   }
+  .endgame-banner{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: linear-gradient(160deg, #2b1418, #3a191d);
+    border: 1px solid var(--red);
+    border-radius: 12px;
+    padding: 10px 18px;
+    margin: 4px 0 18px;
+    color: #ffdede;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    font-size: 15px;
+  }
+  button.download-btn-corner{
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    padding: 8px 14px;
+    font-size: 12px;
+    border-radius: 8px;
+    opacity: 0.85;
+    z-index: 20;
+  }
   .add-row{
     display:flex;
     gap: 10px;
@@ -143,6 +169,12 @@
     letter-spacing: 1px;
     text-transform: uppercase;
     font-weight: bold;
+  }
+  .pending-tag{
+    color: var(--text-dim);
+    font-size: 12px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
   .shield-badge{
     display:flex;
@@ -241,6 +273,10 @@
     animation: pulse-in .5s ease;
     margin: 6px 0 4px;
   }
+  .reveal-name.safe-color{
+    color: var(--safe);
+    text-shadow: 0 0 30px rgba(63,157,94,0.5);
+  }
   .reveal-sub{ color: var(--text-dim); font-size: 16px; margin-bottom: 6px; }
   .reveal-votes{ color: var(--text-dim); font-size: 14px; letter-spacing: 1px; }
   .reveal-message{
@@ -252,6 +288,22 @@
     max-width: 680px;
     margin: 16px 0 28px;
     text-shadow: 0 0 20px rgba(0,0,0,0.5);
+  }
+  .reveal-message-secondary{
+    color: var(--text);
+    font-size: clamp(18px, 3.2vw, 26px);
+    font-weight: bold;
+    line-height: 1.3;
+    text-align: center;
+    max-width: 620px;
+    margin: 2px 0 14px;
+  }
+  .winner-capture{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width: 100%;
+    padding: 12px;
   }
   .winner-row{
     display:flex;
@@ -282,6 +334,10 @@
     box-shadow: 0 0 24px rgba(63,157,94,0.45);
     background: linear-gradient(160deg, #16281c, #1c3524);
   }
+  .winner-card.loyal .avatar-circle{
+    border-color: var(--safe);
+    box-shadow: 0 0 20px rgba(63,157,94,0.45);
+  }
   .winner-name{
     font-size: 24px;
     color: var(--text);
@@ -292,6 +348,30 @@
     color: var(--text-dim);
     font-size: 14px;
     margin-top: 6px;
+  }
+  .winner-sub-heading{
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    font-size: 13px;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 30px;
+  }
+  .winner-row-small{
+    margin-top: 14px;
+  }
+  .winner-card-small{
+    padding: 14px 18px;
+    min-width: 130px;
+    opacity: 0.8;
+  }
+  .winner-card-small .winner-name{
+    font-size: 16px;
+    margin-top: 6px;
+  }
+  .winner-card-small .winner-stat{
+    font-size: 12px;
+    margin-top: 3px;
   }
   @keyframes pulse-in{
     0%{ transform: scale(0.7); opacity:0; }
@@ -526,6 +606,7 @@
 <div id="room-indicator"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script>
 (function(){
   // ---------- SYNC (leest hetzelfde spel als de begeleider-iPad, via Supabase) ----------
@@ -659,7 +740,8 @@
     lastBanishedVotes: null,
     voteTotals: {},
     shieldCounts: {},
-    traitors: [] // pas gevuld/getoond zodra het spel is afgelopen (fase 'gameEnd')
+    traitors: [], // pas gevuld/getoond zodra het spel is afgelopen (fase 'gameEnd')
+    endgameActive: false
   };
 
   function el(tag, attrs, children){
@@ -692,6 +774,7 @@
   function makeAvatar(name, extraClass){
     var wrap = el('div', {class:'avatar-circle' + (extraClass ? ' ' + extraClass : '')});
     var img = el('img', {class:'avatar-img', alt:''});
+    img.crossOrigin = 'anonymous'; // nodig zodat de winnaars-afbeelding ook de foto's mag downloaden
     img.addEventListener('error', function(){ img.style.display = 'none'; });
     wrap.appendChild(img);
     img.src = photoSrc(name);
@@ -846,7 +929,13 @@
   }
 
   // ---------- ENG BOS: tijdens de nacht is dit het hele statusscherm — geen spelersinfo. ----------
+  // De bos-scène blijft één stabiel scherm zolang we in de nacht zitten (i.p.v. bij elke
+  // knopdruk van de verraders opnieuw willekeurig te tekenen, waardoor het beeld leek te
+  // verspringen) — we bouwen 'm dus maar één keer en hergebruiken daarna dezelfde DOM-node.
+  var cachedForestScene = null;
+
   function renderNightForest(){
+    if(cachedForestScene) return cachedForestScene;
     var scene = el('div', {class:'forest-scene'});
     scene.appendChild(el('div', {class:'forest-moon'}));
     scene.appendChild(el('div', {class:'forest-fog'}));
@@ -860,6 +949,7 @@
       scene.appendChild(eye);
     }
     scene.appendChild(el('div', {class:'forest-label', text:'De nacht valt... stil, de verraders kiezen'}));
+    cachedForestScene = scene;
     return scene;
   }
 
@@ -873,15 +963,73 @@
     if(state.lastBanishedVotes){
       wrap.appendChild(el('div', {class:'reveal-votes', text: state.lastBanishedVotes + ' stem' + (state.lastBanishedVotes === 1 ? '' : 'men')}));
     }
+    // Tijdens het eindspel blijft de identiteit geheim, dus dan gebeurt er hierna geen onthulling.
+    if(!state.endgameActive){
+      wrap.appendChild(el('div', {class:'reveal-sub', text:'Identiteit wordt onthuld'}));
+    }
     screen.appendChild(wrap);
     return screen;
   }
 
-  // Tussenscherm terwijl de spelers aan tafel hardop hun rol delen.
+  // Zodra de begeleider bevestigt dat de verbannen speler zijn/haar rol hardop heeft
+  // gedeeld — nu mag die rol ook hier getoond worden, zichtbaar voor iedereen (ook de
+  // afgevallen spelers) op het statusscherm.
+  function renderBanIdentityRevealScene(){
+    var screen = el('div', {class:'screen'});
+    var wrap = el('div', {class:'reveal-wrap'});
+    var isTraitor = (state.traitors || []).indexOf(state.lastBanished) !== -1;
+    wrap.appendChild(makeAvatar(state.lastBanished, 'avatar-lg'));
+    wrap.appendChild(el('div', {class:'reveal-label', text: state.lastBanished}));
+    wrap.appendChild(el('div', {class:'reveal-name' + (isTraitor ? '' : ' safe-color'), text: isTraitor ? 'Verrader' : 'Getrouwe'}));
+    if(state.lastBanishedVotes){
+      wrap.appendChild(el('div', {class:'reveal-votes', text: state.lastBanishedVotes + ' stem' + (state.lastBanishedVotes === 1 ? '' : 'men')}));
+    }
+    screen.appendChild(wrap);
+    return screen;
+  }
+
+  // Zolang de finalisten rood/groen stemmen over het einde van het spel — nog geen
+  // uitslag bekend, dus nog geen oproep om naar tafel te gaan. Wel laten we per speler
+  // zien welke kleur die al gestemd heeft.
+  function renderEndgameVoteScene(){
+    var screen = el('div', {class:'screen'});
+    screen.appendChild(el('h1', {text:'Eindspel'}));
+    var endgameBanner = el('div', {class:'endgame-banner'});
+    endgameBanner.appendChild(el('span', {text:'⚡ Eindspel actief'}));
+    screen.appendChild(endgameBanner);
+    screen.appendChild(el('div', {class:'subtitle', text:'🔴 Rood: er wordt opnieuw gestemd  ·  🟢 Groen: het spel eindigt'}));
+
+    var alive = alivePlayers();
+    var votes = state.endgameVotes || {};
+    var voteList = el('div', {class:'vote-list'});
+    alive.forEach(function(p){
+      var v = votes[p.name];
+      var row = el('div', {class:'vote-list-row'});
+      row.appendChild(makeAvatar(p.name));
+      var nameWrap = el('span', {class:'vote-list-name'});
+      nameWrap.appendChild(document.createTextNode(p.name));
+      if(v === 'groen'){
+        nameWrap.appendChild(el('span', {class:'loyal-tag', text:'🟢 groen gestemd'}));
+      } else if(v === 'rood'){
+        nameWrap.appendChild(el('span', {class:'leader-tag', text:'🔴 rood gestemd'}));
+      } else {
+        nameWrap.appendChild(el('span', {class:'pending-tag', text:'nog niet gestemd'}));
+      }
+      row.appendChild(nameWrap);
+      voteList.appendChild(row);
+    });
+    screen.appendChild(voteList);
+    return screen;
+  }
+
+  // Tussenscherm terwijl de spelers aan tafel hardop hun rol delen. Pas zichtbaar zodra
+  // de begeleider de uitslag ook echt heeft bevestigd (endGameConfirm) — daarvoor blijft
+  // het statusscherm gewoon op de rood/groen-stemming staan.
   function renderIdentityRevealScene(){
     var screen = el('div', {class:'screen'});
     var wrap = el('div', {class:'reveal-wrap'});
-    wrap.appendChild(el('div', {class:'reveal-message', text:'De spelers onthullen nu hun identiteit!'}));
+    wrap.appendChild(el('div', {class:'reveal-message', text:'U wordt verzocht zich naar de tafel te verplaatsen.'}));
+    wrap.appendChild(el('div', {class:'reveal-message-secondary', text:'Identiteit wordt onthuld'}));
     screen.appendChild(wrap);
     return screen;
   }
@@ -895,29 +1043,95 @@
     var traitors = state.traitors || [];
     var traitorsAlive = traitors.filter(function(n){ return survivors.some(function(p){ return p.name === n; }); });
     var traitorsWin = traitorsAlive.length > 0;
+    var winTitle = traitorsWin
+      ? (traitorsAlive.length === 1 ? 'De overgebleven verrader heeft gewonnen!' : 'De verraders winnen')
+      : 'De getrouwen winnen';
 
-    screen.appendChild(el('h1', {text: traitorsWin ? 'De verraders winnen' : 'De getrouwen winnen'}));
+    // Alles in .winner-capture is wat er ook op de gedownloade afbeelding komt te staan —
+    // de downloadknop zelf zit er bewust buiten.
+    var capture = el('div', {class:'winner-capture'});
+    capture.appendChild(el('h1', {text: winTitle}));
 
-    var row = el('div', {class:'winner-row'});
-    survivors.forEach(function(p){
-      var isTraitor = traitors.indexOf(p.name) !== -1;
-      var card = el('div', {class:'winner-card' + (isTraitor ? ' traitor' : ' loyal')});
-      card.appendChild(makeAvatar(p.name, 'avatar-lg'));
+    function buildWinnerCard(p, isTraitor, small){
+      var card = el('div', {class:'winner-card' + (isTraitor ? ' traitor' : ' loyal') + (small ? ' winner-card-small' : '')});
+      card.appendChild(makeAvatar(p.name, small ? 'avatar-md' : 'avatar-lg'));
       card.appendChild(el('div', {class:'winner-name', text: p.name}));
       card.appendChild(el('span', {class: isTraitor ? 'leader-tag' : 'loyal-tag', text: isTraitor ? 'verrader' : 'getrouwe'}));
       var votes = (state.voteTotals && state.voteTotals[p.name]) || 0;
       var shields = (state.shieldCounts && state.shieldCounts[p.name]) || 0;
       card.appendChild(el('div', {class:'winner-stat', text: votes + ' tegenstem' + (votes === 1 ? '' : 'men')}));
       card.appendChild(el('div', {class:'winner-stat', text: shields + ' schild' + (shields === 1 ? '' : 'en') + ' verdiend'}));
-      row.appendChild(card);
+      return card;
+    }
+
+    if(traitorsWin){
+      // De winnende verraders groot bovenin, de overgebleven (verliezende) getrouwen
+      // kleiner eronder.
+      var winningTraitors = survivors.filter(function(p){ return traitors.indexOf(p.name) !== -1; });
+      var losingLoyal = survivors.filter(function(p){ return traitors.indexOf(p.name) === -1; });
+
+      var winRow = el('div', {class:'winner-row'});
+      winningTraitors.forEach(function(p){ winRow.appendChild(buildWinnerCard(p, true, false)); });
+      capture.appendChild(winRow);
+
+      if(losingLoyal.length){
+        capture.appendChild(el('div', {class:'winner-sub-heading', text:'Overgebleven getrouwen'}));
+        var loseRow = el('div', {class:'winner-row winner-row-small'});
+        losingLoyal.forEach(function(p){ loseRow.appendChild(buildWinnerCard(p, false, true)); });
+        capture.appendChild(loseRow);
+      }
+    } else {
+      var row = el('div', {class:'winner-row'});
+      survivors.forEach(function(p){
+        var isTraitor = traitors.indexOf(p.name) !== -1;
+        row.appendChild(buildWinnerCard(p, isTraitor, false));
+      });
+      capture.appendChild(row);
+    }
+    screen.appendChild(capture);
+
+    var downloadBtn = el('button', {class:'action ghost download-btn-corner', text:'📥 Download'});
+    downloadBtn.addEventListener('click', function(){
+      if(typeof html2canvas === 'undefined'){
+        alert('Kon de download-functie niet laden (waarschijnlijk geen internet). Maak eventueel een schermafbeelding als alternatief.');
+        return;
+      }
+      var originalText = downloadBtn.textContent;
+      downloadBtn.disabled = true;
+      downloadBtn.textContent = 'Bezig...';
+      html2canvas(capture, {backgroundColor:'#0b0d14', useCORS:true, scale:2}).then(function(canvas){
+        var link = document.createElement('a');
+        link.download = 'verraders-winnaars.png';
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = originalText;
+      }).catch(function(){
+        alert('Downloaden is niet gelukt.');
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = originalText;
+      });
     });
-    screen.appendChild(row);
+    screen.appendChild(downloadBtn);
+
     return screen;
   }
 
   function renderStatusDashboard(){
+    if(NIGHT_PHASES.indexOf(state.phase) === -1){
+      // Zodra de nacht voorbij is (moord gepleegd, terug naar de dag) mag het bos bij
+      // de volgende nacht weer opnieuw willekeurig getekend worden.
+      cachedForestScene = null;
+    }
     if(state.phase === 'identityReveal'){
       return renderIdentityRevealScene();
+    }
+    if(state.phase === 'endGameConfirm' || state.phase === 'endGameChoice'){
+      // Zolang de begeleider nog niet écht bevestigd heeft (endGameConfirm), blijft het
+      // statusscherm gewoon op de rood/groen-uitslag staan.
+      return renderEndgameVoteScene();
     }
     if(state.phase === 'gameEnd'){
       return renderGameEndScene();
@@ -928,24 +1142,29 @@
     if(state.phase === 'banReveal'){
       return renderBanRevealScene();
     }
+    if(state.phase === 'banIdentityReveal'){
+      return renderBanIdentityRevealScene();
+    }
 
     var screen = el('div', {class:'screen'});
-    screen.appendChild(el('h1', {text:'Status'}));
+    var isVoting = state.phase === 'shield' && state.shieldMode === 'verbannen';
+    var isEndgameVoting = isVoting && state.endgameActive;
+    screen.appendChild(el('h1', {text: isEndgameVoting ? 'Eindspel' : (isVoting ? 'Ronde tafel' : 'Status')}));
 
     if(state.players.length === 0){
       screen.appendChild(el('div', {class:'subtitle', text:'Wachten tot het spel begint...'}));
       return screen;
     }
 
-    var isVoting = state.phase === 'shield' && state.shieldMode === 'verbannen';
-
     var phaseLabel;
-    if(state.phase === 'shield'){
+    if(isEndgameVoting){
+      phaseLabel = 'Er worden mensen verbannen totdat iedereen groen stemt of tot er nog 2 kandidaten over zijn.';
+    } else if(state.phase === 'shield'){
       phaseLabel = isVoting
         ? 'Er wordt gestemd voor verbanning'
-        : 'Een nieuwe dag';
+        : 'Opdracht wordt gespeeld';
     } else if(state.phase === 'reveal'){
-      phaseLabel = 'Nacht ' + state.night + ' is voorbij';
+      phaseLabel = 'Er is iemand vermoord';
     } else {
       phaseLabel = 'Het spel wordt voorbereid...';
     }
@@ -1013,7 +1232,7 @@
       for(var i = state.victimHistory.length - 1; i >= 0; i--){
         var entry = state.victimHistory[i];
         if(entry.victim === name){
-          return (entry.type === 'ban' ? 'verbannen' : 'vermoord') + ' op dag ' + entry.night;
+          return entry.type === 'ban' ? 'verbannen' : 'vermoord';
         }
       }
       return null;
@@ -1027,7 +1246,13 @@
 
       var nameWrap = el('span', {class:'vote-list-name'});
       var nameText = (opts.icon ? opts.icon + ' ' : '') + p.name;
-      if(opts.dead){
+      if(opts.dead && p.identityRevealed){
+        // Zodra de rol bekend is gemaakt, is doorstrepen/de statusnotitie niet meer nodig —
+        // dan telt alleen nog de gekleurde rol-tag.
+        nameWrap.appendChild(document.createTextNode(nameText));
+        var isTraitor = (state.traitors || []).indexOf(p.name) !== -1;
+        nameWrap.appendChild(el('span', {class: isTraitor ? 'leader-tag' : 'loyal-tag', text: isTraitor ? 'verrader' : 'getrouwe'}));
+      } else if(opts.dead){
         // Doorstrepen alléén op de naam zelf — anders trekt Safari de streep ook door de notitie heen.
         nameWrap.appendChild(el('span', {class:'dead-name', text: nameText}));
         var note = findHistoryNote(p.name);
