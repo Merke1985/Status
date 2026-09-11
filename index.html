@@ -822,8 +822,15 @@
   // Dan blijft het gewoon een lege cirkel.
   var PHOTO_BUCKET_URL = SUPABASE_URL + '/storage/v1/object/public/player-photos/';
 
+  // Supabase Storage accepteert geen accenttekens (zoals de ë in "Jurriën") in
+  // bestandsnamen ("Invalid key") — we slaan foto's daarom op onder een "platte"
+  // ASCII-versie van de naam, terwijl overal elders gewoon de echte naam getoond wordt.
+  function photoKeyName(name){
+    return name.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
   function photoSrc(name){
-    return PHOTO_BUCKET_URL + encodeURIComponent(name) + '.jpg?v=' + (state.photoVersion || 0);
+    return PHOTO_BUCKET_URL + encodeURIComponent(photoKeyName(name)) + '.jpg?v=' + (state.photoVersion || 0);
   }
 
   function makeAvatar(name, extraClass){
@@ -897,7 +904,7 @@
         alert('Kon deze foto niet verwerken.');
         return;
       }
-      var path = encodeURIComponent(name) + '.jpg';
+      var path = encodeURIComponent(photoKeyName(name)) + '.jpg';
       supabaseClient.storage.from('player-photos').upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
         .then(function(res){
           if(feedbackEl) feedbackEl.textContent = originalText || 'Kies foto';
