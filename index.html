@@ -229,7 +229,7 @@
     animation: votePulse .7s ease;
   }
   .dead-name{
-    text-decoration: line-through;
+    text-decoration: none;
   }
   .avatar-circle{
     width: 44px;
@@ -469,6 +469,47 @@
   .vote-leader-box.vote-pulse{
     animation: votePulse .7s ease;
   }
+  .revote-candidates-row{
+    display:flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 24px;
+    margin-bottom: 18px;
+  }
+  .revote-candidate-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    background: linear-gradient(160deg, #1a1d26, #22262f);
+    border: 2px solid var(--border);
+    border-radius: 20px;
+    padding: 24px 32px;
+    min-width: 200px;
+  }
+  .revote-candidate-name{
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: bold;
+    color: var(--text);
+    text-align:center;
+    margin-top: 10px;
+  }
+  .revote-candidate-count{
+    font-weight: bold;
+    font-size: 36px;
+    color: var(--text-dim);
+    margin-top: 8px;
+  }
+  .revote-candidate-box.revote-leader{
+    border: 4px solid var(--red);
+    box-shadow: 0 0 26px var(--red-glow), 0 0 46px rgba(255,60,60,0.3);
+  }
+  .revote-candidate-box.revote-leader .revote-candidate-count{
+    color: var(--red);
+  }
+  .revote-candidate-box.vote-pulse{
+    animation: votePulse .7s ease;
+  }
   .shield-spotlight-row{
     display:flex;
     flex-wrap: wrap;
@@ -583,16 +624,30 @@
     0%, 88%, 100%{ opacity: 0; }
     91%, 96%{ opacity: 1; }
   }
-  .forest-label{
+  .forest-content{
     position: relative;
     z-index: 5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    padding: 0 24px;
+  }
+  .forest-label{
     color: #cfd6e6;
     font-size: clamp(18px, 4vw, 28px);
     letter-spacing: 3px;
     text-align: center;
     text-shadow: 0 0 20px rgba(180,190,220,0.5);
     animation: forestPulse 4s ease-in-out infinite;
-    padding: 0 24px;
+  }
+  .forest-instruction{
+    color: #9aa4bb;
+    font-size: clamp(14px, 2.6vw, 18px);
+    letter-spacing: 1px;
+    text-align: center;
+    max-width: 420px;
+    margin-top: 16px;
   }
   @keyframes forestPulse{
     0%, 100%{ opacity: 0.5; }
@@ -910,7 +965,10 @@
 
   // De fases waarin de verraders in het geheim kiezen — hier mag niemand iets van de
   // spelersstatus zien, dus dan tonen we alleen het bos.
-  var NIGHT_PHASES = ['nightHandoff', 'round1', 'round2', 'round3', 'forced', 'noVictim', 'recruitTraitor', 'recruitHandoff', 'recruitReveal'];
+  // 'reveal' en 'victimInstructions' horen hier ook bij: het bos/nachtscherm moet blijven
+  // staan tot de begeleider écht naar de volgende dag gaat, anders ziet de statuspagina
+  // de moord al voordat die aan tafel is aangekondigd.
+  var NIGHT_PHASES = ['nightHandoff', 'nightIpadHandoff', 'silentMurderIntro', 'round1', 'round2', 'round3', 'forced', 'noVictim', 'reveal', 'victimInstructions', 'nextDayConfirm', 'recruitTraitorIntro', 'recruitTraitor', 'recruitHandoff', 'recruitReveal', 'silentMurderPick', 'silentMurderConfirm'];
 
   function buildTreeLayer(count, minW, maxW, minH, maxH, color){
     var layer = el('div', {class:'forest-tree-layer'});
@@ -948,7 +1006,10 @@
       eye.style.animationDelay = (Math.random() * 6) + 's';
       scene.appendChild(eye);
     }
-    scene.appendChild(el('div', {class:'forest-label', text:'De nacht valt... stil, de verraders kiezen'}));
+    var content = el('div', {class:'forest-content'});
+    content.appendChild(el('div', {class:'forest-label', text:'De nacht valt... stil, de verraders kiezen'}));
+    content.appendChild(el('div', {class:'forest-instruction', text:'Iedereen doet de blinddoek om'}));
+    scene.appendChild(content);
     cachedForestScene = scene;
     return scene;
   }
@@ -994,9 +1055,6 @@
   function renderEndgameVoteScene(){
     var screen = el('div', {class:'screen'});
     screen.appendChild(el('h1', {text:'Eindspel'}));
-    var endgameBanner = el('div', {class:'endgame-banner'});
-    endgameBanner.appendChild(el('span', {text:'⚡ Eindspel actief'}));
-    screen.appendChild(endgameBanner);
     screen.appendChild(el('div', {class:'subtitle', text:'🔴 Rood: er wordt opnieuw gestemd  ·  🟢 Groen: het spel eindigt'}));
 
     var alive = alivePlayers();
@@ -1019,6 +1077,19 @@
       voteList.appendChild(row);
     });
     screen.appendChild(voteList);
+    return screen;
+  }
+
+  // Tussenscherm direct na een rode stem: nog geen vote-lijst meer, gewoon de
+  // aankondiging dat er opnieuw verbannen gaat worden.
+  function renderEndgameRedOutcomeScene(){
+    var screen = el('div', {class:'screen'});
+    var wrap = el('div', {class:'reveal-wrap'});
+    var endgameBanner = el('div', {class:'endgame-banner'});
+    endgameBanner.appendChild(el('span', {text:'⚡ Eindspel actief'}));
+    wrap.appendChild(endgameBanner);
+    wrap.appendChild(el('div', {class:'reveal-message', text:'Er is rood gestemd. Er moet opnieuw iemand verbannen worden.'}));
+    screen.appendChild(wrap);
     return screen;
   }
 
@@ -1099,19 +1170,45 @@
       var originalText = downloadBtn.textContent;
       downloadBtn.disabled = true;
       downloadBtn.textContent = 'Bezig...';
-      html2canvas(capture, {backgroundColor:'#0b0d14', useCORS:true, scale:2}).then(function(canvas){
-        var link = document.createElement('a');
-        link.download = 'verraders-winnaars.png';
-        link.href = canvas.toDataURL('image/png');
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+
+      function resetBtn(){
         downloadBtn.disabled = false;
         downloadBtn.textContent = originalText;
+      }
+
+      html2canvas(capture, {backgroundColor:'#0b0d14', useCORS:true, scale:2}).then(function(canvas){
+        canvas.toBlob(function(blob){
+          if(!blob){
+            alert('Downloaden is niet gelukt.');
+            resetBtn();
+            return;
+          }
+          var fileName = 'verraders-winnaars.png';
+          var url = URL.createObjectURL(blob);
+
+          // iPhone/iPad negeren een gewone download-link vaak stilletjes — daar openen
+          // we de afbeelding rechtstreeks in een nieuw tabblad, zodat er lang op getikt
+          // en met "Bewaar afbeelding" opgeslagen kan worden (geen deelvenster, gewoon
+          // opslaan). Op andere apparaten werkt de normale downloadknop al goed.
+          var isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+          if(isIOSDevice){
+            window.open(url, '_blank');
+          } else {
+            var link = document.createElement('a');
+            link.download = fileName;
+            link.href = url;
+            link.rel = 'noopener';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+          }
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 30000);
+          resetBtn();
+        }, 'image/png');
       }).catch(function(){
         alert('Downloaden is niet gelukt.');
-        downloadBtn.disabled = false;
-        downloadBtn.textContent = originalText;
+        resetBtn();
       });
     });
     screen.appendChild(downloadBtn);
@@ -1125,7 +1222,7 @@
       // de volgende nacht weer opnieuw willekeurig getekend worden.
       cachedForestScene = null;
     }
-    if(state.phase === 'identityReveal'){
+    if(state.phase === 'identityReveal' || state.phase === 'winnersConfirm'){
       return renderIdentityRevealScene();
     }
     if(state.phase === 'endGameConfirm' || state.phase === 'endGameChoice'){
@@ -1133,13 +1230,16 @@
       // statusscherm gewoon op de rood/groen-uitslag staan.
       return renderEndgameVoteScene();
     }
-    if(state.phase === 'gameEnd'){
+    if(state.phase === 'endGameRedOutcome'){
+      return renderEndgameRedOutcomeScene();
+    }
+    if(state.phase === 'gameEnd' || state.phase === 'gameEndExitConfirm'){
       return renderGameEndScene();
     }
-    if(NIGHT_PHASES.indexOf(state.phase) !== -1){
+    if(NIGHT_PHASES.indexOf(state.phase) !== -1 && state.nextDayReturnPhase !== 'banIdentityReveal'){
       return renderNightForest();
     }
-    if(state.phase === 'banReveal'){
+    if(state.phase === 'banReveal' || state.phase === 'banIdentityConfirm'){
       return renderBanRevealScene();
     }
     if(state.phase === 'banIdentityReveal'){
@@ -1147,7 +1247,7 @@
     }
 
     var screen = el('div', {class:'screen'});
-    var isVoting = state.phase === 'shield' && state.shieldMode === 'verbannen';
+    var isVoting = (state.phase === 'shield' || state.phase === 'banConfirm' || state.phase === 'banTieBreak' || state.phase === 'banTieDraw' || state.phase === 'banTieBackConfirm' || state.phase === 'banRevoteIntro' || state.phase === 'banRevote') && state.shieldMode === 'verbannen';
     var isEndgameVoting = isVoting && state.endgameActive;
     screen.appendChild(el('h1', {text: isEndgameVoting ? 'Eindspel' : (isVoting ? 'Ronde tafel' : 'Status')}));
 
@@ -1159,12 +1259,12 @@
     var phaseLabel;
     if(isEndgameVoting){
       phaseLabel = 'Er worden mensen verbannen totdat iedereen groen stemt of tot er nog 2 kandidaten over zijn.';
-    } else if(state.phase === 'shield'){
+    } else if(state.phase === 'banRevote'){
+      phaseLabel = 'Gelijkspel — er wordt opnieuw gestemd tussen de overgebleven kandidaten';
+    } else if(state.phase === 'shield' || state.phase === 'banConfirm' || state.phase === 'banTieBreak' || state.phase === 'banTieDraw' || state.phase === 'banTieBackConfirm' || state.phase === 'banRevoteIntro'){
       phaseLabel = isVoting
         ? 'Er wordt gestemd voor verbanning'
         : 'Opdracht wordt gespeeld';
-    } else if(state.phase === 'reveal'){
-      phaseLabel = 'Er is iemand vermoord';
     } else {
       phaseLabel = 'Het spel wordt voorbereid...';
     }
@@ -1173,6 +1273,11 @@
     // Tijdens het stemmen: alléén de kandidaten, met live stemeffect — geen namenlijst/geschiedenis erbij.
     if(isVoting){
       var aliveForVotes = alivePlayers().slice();
+      var isTieRevote = state.phase === 'banRevote' && state.tieCandidates && state.tieCandidates.length;
+      if(isTieRevote){
+        // Herstemming na een gelijkspel — alleen de overgebleven kandidaten zijn stembaar.
+        aliveForVotes = aliveForVotes.filter(function(p){ return state.tieCandidates.indexOf(p.name) !== -1; });
+      }
       var totalCast = aliveForVotes.reduce(function(sum, p){ return sum + (state.votes[p.name] || 0); }, 0);
       if(totalCast === 0) lastSeenVoteCounts = {};
 
@@ -1188,6 +1293,27 @@
       var voteSection = el('div', {class:'status-section'});
       voteSection.appendChild(el('div', {class:'status-heading', text:'Kandidaten'}));
       voteSection.appendChild(el('div', {class:'votes-remaining', text: remaining + ' van de ' + aliveForVotes.length + ' stemmen nog te vergeven'}));
+
+      if(isTieRevote){
+        // Klein aantal overgebleven kandidaten: allemaal groot in beeld, wie op dit
+        // moment de meeste stemmen heeft krijgt een extra duidelijk kader.
+        var revoteRow = el('div', {class:'revote-candidates-row'});
+        aliveForVotes.forEach(function(p){
+          var v = state.votes[p.name] || 0;
+          var isLeader = maxVotes > 0 && v === maxVotes;
+          var justGotVote = v > (lastSeenVoteCounts[p.name] || 0);
+          var box = el('div', {class:'revote-candidate-box' + (isLeader ? ' revote-leader' : '') + (justGotVote ? ' vote-pulse' : '')});
+          box.appendChild(makeAvatar(p.name, 'avatar-lg'));
+          box.appendChild(el('div', {class:'revote-candidate-name', text: p.name}));
+          if(isLeader){ box.appendChild(el('div', {class:'vote-leader-label', text:'meeste stemmen'})); }
+          box.appendChild(el('div', {class:'revote-candidate-count', text: String(v)}));
+          revoteRow.appendChild(box);
+          lastSeenVoteCounts[p.name] = v;
+        });
+        voteSection.appendChild(revoteRow);
+        screen.appendChild(voteSection);
+        return screen;
+      }
 
       // Wie op dit moment de meeste stemmen heeft, krijgt een eigen kader bovenaan.
       var leaders = maxVotes > 0 ? aliveForVotes.filter(function(p){ return (state.votes[p.name] || 0) === maxVotes; }) : [];
@@ -1246,17 +1372,21 @@
 
       var nameWrap = el('span', {class:'vote-list-name'});
       var nameText = (opts.icon ? opts.icon + ' ' : '') + p.name;
-      if(opts.dead && p.identityRevealed){
-        // Zodra de rol bekend is gemaakt, is doorstrepen/de statusnotitie niet meer nodig —
-        // dan telt alleen nog de gekleurde rol-tag.
-        nameWrap.appendChild(document.createTextNode(nameText));
-        var isTraitor = (state.traitors || []).indexOf(p.name) !== -1;
-        nameWrap.appendChild(el('span', {class: isTraitor ? 'leader-tag' : 'loyal-tag', text: isTraitor ? 'verrader' : 'getrouwe'}));
-      } else if(opts.dead){
-        // Doorstrepen alléén op de naam zelf — anders trekt Safari de streep ook door de notitie heen.
+      if(opts.dead){
+        // Doorstrepen alléén op de naam zelf — anders trekt Safari de streep ook door de rest heen.
         nameWrap.appendChild(el('span', {class:'dead-name', text: nameText}));
-        var note = findHistoryNote(p.name);
-        if(note) nameWrap.appendChild(el('span', {class:'history-note', text: note}));
+        // Vermoorde spelers zijn per spelregel altijd getrouwe — verraders worden nooit
+        // vermoord — dus die rol mag altijd getoond worden. Bij verbannen spelers pas
+        // zodra de begeleider de identiteit heeft laten onthullen.
+        if(opts.murdered){
+          nameWrap.appendChild(el('span', {class:'loyal-tag', text:'getrouwe'}));
+        } else if(p.identityRevealed){
+          var isTraitor = (state.traitors || []).indexOf(p.name) !== -1;
+          nameWrap.appendChild(el('span', {class: isTraitor ? 'leader-tag' : 'loyal-tag', text: isTraitor ? 'verrader' : 'getrouwe'}));
+        } else {
+          var note = findHistoryNote(p.name);
+          if(note) nameWrap.appendChild(el('span', {class:'history-note', text: note}));
+        }
       } else {
         nameWrap.appendChild(document.createTextNode(nameText));
       }
@@ -1320,7 +1450,7 @@
       var murderedSection = el('div', {class:'status-section'});
       murderedSection.appendChild(el('div', {class:'status-heading', text:'Vermoord'}));
       var murderedList = el('div', {class:'vote-list'});
-      murderedPlayers.forEach(function(p){ murderedList.appendChild(makeCandidateRow(p, {dead:true, icon:'💀'})); });
+      murderedPlayers.forEach(function(p){ murderedList.appendChild(makeCandidateRow(p, {dead:true, icon:'💀', murdered:true})); });
       murderedSection.appendChild(murderedList);
       screen.appendChild(murderedSection);
     }
