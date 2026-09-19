@@ -469,6 +469,21 @@
   .vote-leader-box.vote-pulse{
     animation: votePulse .7s ease;
   }
+  .endgame-players-row.revote-candidates-row{
+    gap: 16px;
+  }
+  .endgame-players-row .revote-candidate-box{
+    padding: 16px 20px;
+    min-width: 140px;
+  }
+  .endgame-players-row .avatar-circle.avatar-lg{
+    width: 110px;
+    height: 110px;
+  }
+  .endgame-players-row .revote-candidate-name{
+    font-size: clamp(18px, 2.6vw, 24px);
+    margin-top: 6px;
+  }
   .revote-candidates-row{
     display:flex;
     flex-wrap: wrap;
@@ -1059,6 +1074,29 @@
   // Zolang de finalisten rood/groen stemmen over het einde van het spel — nog geen
   // uitslag bekend, dus nog geen oproep om naar tafel te gaan. Wel laten we per speler
   // zien welke kleur die al gestemd heeft.
+  // Tussenscherm zodra de begeleider het eindspel aankondigt (nog vóór de rood/groen-
+  // stemming begint) — laat zien wie er nog meedoet, zodat iedereen kan meedenken.
+  function renderEndGameStartIntroScene(){
+    var screen = el('div', {class:'screen'});
+    var wrap = el('div', {class:'reveal-wrap'});
+    wrap.appendChild(el('div', {class:'reveal-message', text:'Het eindspel wordt gespeeld, vanaf nu wordt niet meer onthuld wat de rol van de verbannen speler is!'}));
+    wrap.appendChild(el('div', {class:'reveal-message-secondary', text:'Wie denken jullie dat de verraders zijn?'}));
+    screen.appendChild(wrap);
+
+    // Op dit moment zijn er nog maar hooguit 6 spelers over, dus die mogen groot
+    // in beeld staan (net als bij een herstemming na een gelijkspel).
+    var alive = alivePlayers();
+    var row = el('div', {class:'revote-candidates-row endgame-players-row'});
+    alive.forEach(function(p){
+      var box = el('div', {class:'revote-candidate-box'});
+      box.appendChild(makeAvatar(p.name, 'avatar-lg'));
+      box.appendChild(el('div', {class:'revote-candidate-name', text: p.name}));
+      row.appendChild(box);
+    });
+    screen.appendChild(row);
+    return screen;
+  }
+
   function renderEndgameVoteScene(){
     var screen = el('div', {class:'screen'});
     screen.appendChild(el('h1', {text:'Eindspel'}));
@@ -1231,6 +1269,9 @@
     }
     if(state.phase === 'identityReveal' || state.phase === 'winnersConfirm'){
       return renderIdentityRevealScene();
+    }
+    if(state.phase === 'endGameStartIntro'){
+      return renderEndGameStartIntroScene();
     }
     if(state.phase === 'endGameConfirm' || state.phase === 'endGameChoice'){
       // Zolang de begeleider nog niet écht bevestigd heeft (endGameConfirm), blijft het
