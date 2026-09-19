@@ -975,7 +975,7 @@
   // 'reveal' en 'victimInstructions' horen hier ook bij: het bos/nachtscherm moet blijven
   // staan tot de begeleider écht naar de volgende dag gaat, anders ziet de statuspagina
   // de moord al voordat die aan tafel is aangekondigd.
-  var NIGHT_PHASES = ['nightHandoff', 'nightIpadHandoff', 'silentMurderIntro', 'round1', 'round2', 'round3', 'forced', 'noVictim', 'reveal', 'victimInstructions', 'nextDayConfirm', 'recruitTraitorIntro', 'recruitTraitor', 'recruitHandoff', 'recruitReveal', 'silentMurderPick', 'silentMurderConfirm'];
+  var NIGHT_PHASES = ['nightHandoff', 'nightIpadHandoff', 'silentMurderIntro', 'round1', 'round2', 'round3', 'forced', 'noVictim', 'reveal', 'victimInstructions', 'nextDayConfirm', 'recruitTraitorIntro', 'recruitTraitor', 'recruitHandoff', 'recruitReveal', 'silentMurderPick', 'silentMurderConfirm', 'lastTraitorChoice', 'lastTraitorMurderHandoff', 'lastTraitorMurderPick', 'lastTraitorMurderConfirm'];
 
   function buildTreeLayer(count, minW, maxW, minH, maxH, color){
     var layer = el('div', {class:'forest-tree-layer'});
@@ -1243,7 +1243,7 @@
     if(state.phase === 'gameEnd' || state.phase === 'gameEndExitConfirm'){
       return renderGameEndScene();
     }
-    if(NIGHT_PHASES.indexOf(state.phase) !== -1 && state.nextDayReturnPhase !== 'banIdentityReveal'){
+    if(NIGHT_PHASES.indexOf(state.phase) !== -1){
       return renderNightForest();
     }
     if(state.phase === 'banReveal' || state.phase === 'banIdentityConfirm'){
@@ -1405,23 +1405,17 @@
       return row;
     }
 
-    // Uitzondering: het allereerste slachtoffer (Nacht 1) blijft op het overzicht gewoon
-    // bij de actieve spelers staan totdat de eerste verbanning heeft plaatsgevonden.
+    // Uitzondering: vermoorde spelers blijven op het overzicht gewoon bij de actieve
+    // spelers staan totdat de eerste verbanning heeft plaatsgevonden — pas dan mag het
+    // statusscherm laten zien wie er (al dan niet meermaals) vermoord is.
     var firstBanHappened = state.victimHistory.some(function(e){ return e.type === 'ban'; });
-    var firstMurderVictim = null;
-    for(var hi = 0; hi < state.victimHistory.length; hi++){
-      if(state.victimHistory[hi].type === 'murder' && state.victimHistory[hi].victim){
-        firstMurderVictim = state.victimHistory[hi].victim;
-        break;
-      }
-    }
-    var holdBackFirstMurder = firstMurderVictim && !firstBanHappened;
+    var holdBackMurders = !firstBanHappened;
 
     var activePlayers = state.players.filter(function(p){
-      return p.alive || (holdBackFirstMurder && p.name === firstMurderVictim);
+      return p.alive || (holdBackMurders && p.deathType === 'murder');
     });
     var murderedPlayers = state.players.filter(function(p){
-      return !p.alive && p.deathType === 'murder' && !(holdBackFirstMurder && p.name === firstMurderVictim);
+      return !p.alive && p.deathType === 'murder' && !holdBackMurders;
     });
     var banishedPlayers = state.players.filter(function(p){ return !p.alive && p.deathType === 'ban'; });
     var otherDeadPlayers = state.players.filter(function(p){ return !p.alive && p.deathType !== 'murder' && p.deathType !== 'ban'; });
