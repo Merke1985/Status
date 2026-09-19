@@ -990,7 +990,7 @@
   // 'reveal' en 'victimInstructions' horen hier ook bij: het bos/nachtscherm moet blijven
   // staan tot de begeleider écht naar de volgende dag gaat, anders ziet de statuspagina
   // de moord al voordat die aan tafel is aangekondigd.
-  var NIGHT_PHASES = ['nightHandoff', 'nightIpadHandoff', 'silentMurderIntro', 'round1', 'round2', 'round3', 'forced', 'noVictim', 'reveal', 'victimInstructions', 'nextDayConfirm', 'recruitTraitorIntro', 'recruitTraitor', 'recruitHandoff', 'recruitReveal', 'silentMurderPick', 'silentMurderConfirm', 'lastTraitorChoice', 'lastTraitorMurderHandoff', 'lastTraitorMurderPick', 'lastTraitorMurderConfirm'];
+  var NIGHT_PHASES = ['nightHandoff', 'nightIpadHandoff', 'silentMurderIntro', 'round1', 'round2', 'round3', 'forced', 'noVictim', 'reveal', 'victimInstructions', 'nextDayConfirm', 'recruitTraitorIntro', 'recruitPickHandoff', 'recruitTraitor', 'recruitHandoff', 'recruitReveal', 'silentMurderPick', 'silentMurderConfirm', 'lastTraitorChoice', 'lastTraitorMurderHandoff', 'lastTraitorMurderPick', 'lastTraitorMurderConfirm'];
 
   function buildTreeLayer(count, minW, maxW, minH, maxH, color){
     var layer = el('div', {class:'forest-tree-layer'});
@@ -1094,6 +1094,16 @@
       row.appendChild(box);
     });
     screen.appendChild(row);
+    return screen;
+  }
+
+  // Tussenscherm zodra de begeleider voor de 50/50 kiest bij een gelijkspel — de
+  // envelop wordt getrokken, dus er is hier niets meer te stemmen.
+  function renderFiftyFiftyScene(){
+    var screen = el('div', {class:'screen'});
+    var wrap = el('div', {class:'reveal-wrap'});
+    wrap.appendChild(el('div', {class:'reveal-message', text:'Stemmen zijn opnieuw gelijk, de 50/50 envelop wordt nu gekozen!'}));
+    screen.appendChild(wrap);
     return screen;
   }
 
@@ -1293,9 +1303,14 @@
     if(state.phase === 'banIdentityReveal'){
       return renderBanIdentityRevealScene();
     }
+    if(state.phase === 'banTieDraw' || (state.phase === 'banConfirm' && state.pendingBanReturnPhase === 'banTieDraw')){
+      // Ook op het bevestigingsscherm ná de trekking blijft het statusscherm op de
+      // 50/50-melding staan — pas bij de echte verbanning (banReveal) springt het door.
+      return renderFiftyFiftyScene();
+    }
 
     var screen = el('div', {class:'screen'});
-    var isVoting = (state.phase === 'shield' || state.phase === 'banConfirm' || state.phase === 'banTieBreak' || state.phase === 'banTieDraw' || state.phase === 'banTieBackConfirm' || state.phase === 'banRevoteIntro' || state.phase === 'banRevote') && state.shieldMode === 'verbannen';
+    var isVoting = (state.phase === 'shield' || state.phase === 'banConfirm' || state.phase === 'banTieBreak' || state.phase === 'banTieBackConfirm' || state.phase === 'banRevoteIntro' || state.phase === 'banRevote') && state.shieldMode === 'verbannen';
     var isEndgameVoting = isVoting && state.endgameActive;
     screen.appendChild(el('h1', {text: isEndgameVoting ? 'Eindspel' : (isVoting ? 'Ronde tafel' : 'Status')}));
 
@@ -1309,7 +1324,7 @@
       phaseLabel = 'Er worden mensen verbannen totdat iedereen groen stemt of tot er nog 2 kandidaten over zijn.';
     } else if(state.phase === 'banRevote'){
       phaseLabel = 'Gelijkspel — er wordt opnieuw gestemd tussen de overgebleven kandidaten';
-    } else if(state.phase === 'shield' || state.phase === 'banConfirm' || state.phase === 'banTieBreak' || state.phase === 'banTieDraw' || state.phase === 'banTieBackConfirm' || state.phase === 'banRevoteIntro'){
+    } else if(state.phase === 'shield' || state.phase === 'banConfirm' || state.phase === 'banTieBreak' || state.phase === 'banTieBackConfirm' || state.phase === 'banRevoteIntro'){
       phaseLabel = isVoting
         ? 'Er wordt gestemd voor verbanning'
         : 'Opdracht wordt gespeeld';
@@ -1321,6 +1336,11 @@
     // Tijdens het stemmen: alléén de kandidaten, met live stemeffect — geen namenlijst/geschiedenis erbij.
     if(isVoting){
       var aliveForVotes = alivePlayers().slice();
+      // Alle levende spelers mogen stemmen — dat blijft ook bij een herstemming na een
+      // gelijkspel zo, alleen het aantal kándidaten wordt dan beperkt. Het totaal aantal
+      // stemmen moet dus altijd op alle stemmers gebaseerd blijven, niet op het aantal
+      // kandidaten waarop gestemd kan worden.
+      var totalVoters = aliveForVotes.length;
       var isTieRevote = state.phase === 'banRevote' && state.tieCandidates && state.tieCandidates.length;
       if(isTieRevote){
         // Herstemming na een gelijkspel — alleen de overgebleven kandidaten zijn stembaar.
@@ -1336,11 +1356,11 @@
       });
       var maxVotes = 0;
       aliveForVotes.forEach(function(p){ maxVotes = Math.max(maxVotes, state.votes[p.name] || 0); });
-      var remaining = Math.max(0, aliveForVotes.length - totalCast);
+      var remaining = Math.max(0, totalVoters - totalCast);
 
       var voteSection = el('div', {class:'status-section'});
       voteSection.appendChild(el('div', {class:'status-heading', text:'Kandidaten'}));
-      voteSection.appendChild(el('div', {class:'votes-remaining', text: remaining + ' van de ' + aliveForVotes.length + ' stemmen nog te vergeven'}));
+      voteSection.appendChild(el('div', {class:'votes-remaining', text: remaining + ' van de ' + totalVoters + ' stemmen nog te vergeven'}));
 
       if(isTieRevote){
         // Klein aantal overgebleven kandidaten: allemaal groot in beeld, wie op dit
